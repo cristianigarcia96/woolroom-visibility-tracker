@@ -1,3 +1,3 @@
 streamlit
 pandas
-serpapi==2.0.0
+serpapi==1.5.0
