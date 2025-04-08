@@ -1,5 +1,5 @@
 import streamlit as st
-from serpapi.google_search import GoogleSearch
+from serpapi import GoogleSearch
 import pandas as pd
 from datetime import datetime
 import time
