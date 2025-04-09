@@ -85,13 +85,13 @@ if run and api_key and keywords_input and brand:
             results = search.get_dict()
             metadata = results.get("search_metadata", {})
 
-            serp_presence = {"traditional": 0, "non-traditional": 0}
-            seen_features = set()
+            serp_presence = {label: "-" for label, _ in feature_map.values()}
+            presence_flags = {k: 0 for k in weights.keys()}
 
             for item in results.get("organic_results", []):
                 if brand.lower() in str(item).lower():
-                    serp_presence["traditional"] += 1
-                    seen_features.add("Organic results")
+                    serp_presence["Organic results"] = "Yes"
+                    presence_flags["traditional"] += 1
                     break
 
             def search_features(data, path=""):
@@ -106,16 +106,16 @@ if run and api_key and keywords_input and brand:
                             for item in v:
                                 if brand.lower() in str(item).lower():
                                     label, ftype = feature_map.get(k, (k, "non-traditional"))
-                                    serp_presence[ftype] += 1
-                                    seen_features.add(label)
+                                    serp_presence[label] = "Yes"
+                                    presence_flags[ftype] += 1
 
                         elif isinstance(v, (dict, list)):
                             search_features(v, new_path)
                         elif isinstance(v, str) and brand.lower() in v.lower():
                             label_key = next((p for p in path.split("::") if p in feature_map), path.split("::")[-1])
                             label, ftype = feature_map.get(label_key, (label_key, "non-traditional"))
-                            serp_presence[ftype] += 1
-                            seen_features.add(label)
+                            serp_presence[label] = "Yes"
+                            presence_flags[ftype] += 1
 
                 elif isinstance(data, list):
                     for item in data:
@@ -123,24 +123,30 @@ if run and api_key and keywords_input and brand:
 
             search_features(results)
 
-            score = compute_score(serp_presence)
+            traditional_count = presence_flags["traditional"]
+            non_traditional_count = presence_flags["non-traditional"]
+            score = compute_score({
+                "Traditional Count": traditional_count,
+                "Non-Traditional Count": non_traditional_count
+            })
             grade = compute_grade(score)
 
-            summary_results.append({
-                "Keyword": keyword,
-                "Traditional Count": serp_presence["traditional"],
-                "Non-Traditional Count": serp_presence["non-traditional"],
+            row = {"Keyword": keyword}
+            row.update(serp_presence)
+            row.update({
+                "Traditional Count": traditional_count,
+                "Non-Traditional Count": non_traditional_count,
                 "Score": round(score, 2),
                 "Grade": grade,
                 "JSON URL": metadata.get("json_endpoint", "-"),
                 "HTML URL": metadata.get("raw_html_file", "-")
             })
-
+            summary_results.append(row)
             time.sleep(1.2)
 
     if summary_results:
         df = pd.DataFrame(summary_results)
-        st.success("✅ Visibility scoring summary:")
+        st.success("✅ Brand visibility summary:")
         st.dataframe(df, use_container_width=True)
 
         csv = df.to_csv(index=False).encode('utf-8')
