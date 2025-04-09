@@ -25,8 +25,6 @@ visibility_sections = [
     {"label": "Explore Brands", "api_key": "related_brands", "match_field": "block_title", "match_value": "explore brands"},
     {"label": "People Also Buy From", "api_key": "related_brands", "match_field": "block_title", "match_value": "people also buy from"},
     {"label": "Discussion and Forums", "api_key": "discussions_and_forums", "match_field": "link"},
-    {"label": "What People Are Saying", "api_key": None},
-    {"label": "Shop by Store", "api_key": None}
 ]
 
 def check_presence(results, section, brand_name):
