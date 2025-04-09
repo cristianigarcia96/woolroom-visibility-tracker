@@ -43,6 +43,12 @@ def check_presence(results, section, brand_name):
             return "-"
         return "Yes" if brand_name in website.lower() else "No"
 
+    if api_key == "organic_results" and isinstance(data, list):
+        for idx, item in enumerate(data, start=1):
+            if brand_name in str(item).lower():
+                return str(idx)
+        return "No"
+
     if isinstance(data, list):
         for item in data:
             match_field = section.get("match_field")
