@@ -21,10 +21,12 @@ visibility_sections = [
     {"label": "People Also Ask", "api_key": "related_questions", "match_field": "link"},
     {"label": "Popular Products", "api_key": "immersive_products", "match_field": "category", "match_value": "popular products"},
     {"label": "Knowledge Graph", "api_key": "knowledge_graph"},
-    {"label": "Inline Videos", "api_key": "inline_videos", "match_field": "link"},
+    {"label": "Videos", "api_key": "inline_videos", "match_field": "link"},
     {"label": "Explore Brands", "api_key": "related_brands", "match_field": "block_title", "match_value": "explore brands"},
     {"label": "People Also Buy From", "api_key": "related_brands", "match_field": "block_title", "match_value": "people also buy from"},
-    {"label": "Discussion and Forums", "api_key": "discussions_and_forums", "match_field": "link"},
+    {"label": "What People Are Saying", "api_key": None},
+    {"label": "Shop by Store", "api_key": None},
+    {"label": "Discussion and Forums", "api_key": "discussions_and_forums", "match_field": "link"}
 ]
 
 def check_presence(results, section, brand_name):
@@ -88,6 +90,7 @@ if run and api_key and keywords_input and brand:
             time.sleep(1.2)
 
     df = pd.DataFrame(results_list)
+    df = df[["Keyword"] + [s["label"] for s in visibility_sections] + ["JSON URL", "HTML URL"]]
     st.success("✅ Visibility results ready:")
     st.dataframe(df, use_container_width=True)
 
