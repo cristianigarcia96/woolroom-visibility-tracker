@@ -4,65 +4,76 @@ import pandas as pd
 from datetime import datetime
 import time
 
-# === Sidebar ===
-st.sidebar.title("Brand Visibility Tracker")
-api_key = st.sidebar.text_input("🔑 SerpAPI Key", type="password")
-brand = st.sidebar.text_input("🏷️ Brand Name", "woolroom")
-keywords_input = st.sidebar.text_area("🔍 Keywords (one per line)")
-run = st.sidebar.button("Run Visibility Check")
+st.set_page_config(page_title="SERP Visibility Tracker", layout="wide")
 
-# === SERP Sections to Track ===
-visibility_sections = [
-    {"label": "Organic Results", "api_key": "organic_results", "match_field": "link"},
-    {"label": "People Also Ask", "api_key": "related_questions", "match_field": "link"},
-    {"label": "Popular Products", "api_key": "immersive_products", "match_field": "category", "match_value": "popular products"},
-    {"label": "Knowledge Graph", "api_key": "knowledge_graph"},
-    {"label": "Inline Videos", "api_key": "inline_videos", "match_field": "link"},
-    {"label": "Explore Brands", "api_key": "related_brands", "match_field": "block_title", "match_value": "explore brands"},
-    {"label": "People Also Buy From", "api_key": "related_brands", "match_field": "block_title", "match_value": "people also buy from"},
-    {"label": "Discussion and Forums", "api_key": "discussions_and_forums", "match_field": "link"},
-]
+# === Sidebar UI ===
+st.sidebar.title("🔍 SERP Visibility Tracker")
+st.sidebar.markdown("Track your brand's visibility across Google SERP features.")
 
-def check_presence(results, section, brand_name):
-    api_key = section.get("api_key")
-    if not api_key or api_key not in results:
-        return "-"
+api_key = st.sidebar.text_input("🔐 SerpAPI Key", type="password")
+brand = st.sidebar.text_input("🏷️ Brand Name to Track")
+keywords_input = st.sidebar.text_area("📝 Keywords (one per line)")
+run = st.sidebar.button("🚀 Run Visibility Check")
 
-    data = results[api_key]
-    brand_name = brand_name.lower()
+# === Feature labeling overrides and type mapping ===
+feature_map = {
+    "related_searches": ("Related searches", "non-traditional"),
+    "knowledge_graph": ("Knowledge panel", "non-traditional"),
+    "organic_results": ("Organic results", "traditional"),
+    "inline_videos": ("Videos", "non-traditional"),
+    "ads": ("Ads", "non-traditional"),
+    "shopping_results": ("Shopping results", "non-traditional"),
+    "immersive_products": ("Popular products", "non-traditional"),
+    "people_also_ask": ("People Also Ask", "non-traditional"),
+    "discussions_and_forums": ("Discussions and forums", "non-traditional")
+}
 
-    if api_key == "knowledge_graph":
-        website = data.get("website")
-        if website is None:
-            return "-"
-        return "Yes" if brand_name in website.lower() else "No"
+weights = {
+    "traditional": 1,
+    "non-traditional": 0.5
+}
 
-    if isinstance(data, list):
-        for item in data:
-            match_field = section.get("match_field")
-            match_value = section.get("match_value")
+def compute_score(row):
+    t = row['Traditional Count'] * weights['traditional']
+    n = row['Non-Traditional Count'] * weights['non-traditional']
+    return t + n
 
-            if match_field:
-                field_val = item.get(match_field, "").lower()
-                if match_value:
-                    if match_value in field_val and brand_name in str(item).lower():
-                        return "Yes"
-                else:
-                    if brand_name in field_val:
-                        return "Yes"
-            else:
-                if brand_name in str(item).lower():
-                    return "Yes"
-        return "No"
+def compute_grade(score):
+    if score >= 2.5:
+        return "A"
+    elif score >= 2.0:
+        return "B"
+    elif score >= 1.5:
+        return "C"
+    elif score >= 1.0:
+        return "D"
+    else:
+        return "F"
 
-    return "Yes" if brand_name in str(data).lower() else "No"
+st.markdown("""
+    <style>
+        .main .block-container {
+            padding-top: 2rem;
+        }
+        .stDataFrame thead tr th {
+            background-color: #f4f4f4;
+        }
+        .stDownloadButton button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .stButton button {
+            background-color: #1f77b4;
+            color: white;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-# === Run if triggered ===
-if run and api_key and keywords_input:
+if run and api_key and keywords_input and brand:
     keywords = [k.strip() for k in keywords_input.split("\n") if k.strip()]
-    results_list = []
+    summary_results = []
 
-    with st.spinner("Running checks..."):
+    with st.spinner("🔍 Running visibility checks across keywords..."):
         for keyword in keywords:
             params = {
                 "q": keyword,
@@ -72,23 +83,73 @@ if run and api_key and keywords_input:
             }
             search = GoogleSearch(params)
             results = search.get_dict()
+            metadata = results.get("search_metadata", {})
 
-            row = {"Keyword": keyword}
-            for section in visibility_sections:
-                row[section["label"]] = check_presence(results, section, brand)
-            results_list.append(row)
+            serp_presence = {"traditional": 0, "non-traditional": 0}
+            seen_features = set()
+
+            for item in results.get("organic_results", []):
+                if brand.lower() in str(item).lower():
+                    serp_presence["traditional"] += 1
+                    seen_features.add("Organic results")
+                    break
+
+            def search_features(data, path=""):
+                if isinstance(data, dict):
+                    for k, v in data.items():
+                        if k == "organic_results":
+                            continue
+
+                        new_path = f"{path}::{k}" if path else k
+
+                        if k == "immersive_products" and isinstance(v, list):
+                            for item in v:
+                                if brand.lower() in str(item).lower():
+                                    label, ftype = feature_map.get(k, (k, "non-traditional"))
+                                    serp_presence[ftype] += 1
+                                    seen_features.add(label)
+
+                        elif isinstance(v, (dict, list)):
+                            search_features(v, new_path)
+                        elif isinstance(v, str) and brand.lower() in v.lower():
+                            label_key = next((p for p in path.split("::") if p in feature_map), path.split("::")[-1])
+                            label, ftype = feature_map.get(label_key, (label_key, "non-traditional"))
+                            serp_presence[ftype] += 1
+                            seen_features.add(label)
+
+                elif isinstance(data, list):
+                    for item in data:
+                        search_features(item, path)
+
+            search_features(results)
+
+            score = compute_score(serp_presence)
+            grade = compute_grade(score)
+
+            summary_results.append({
+                "Keyword": keyword,
+                "Traditional Count": serp_presence["traditional"],
+                "Non-Traditional Count": serp_presence["non-traditional"],
+                "Score": round(score, 2),
+                "Grade": grade,
+                "JSON URL": metadata.get("json_endpoint", "-"),
+                "HTML URL": metadata.get("raw_html_file", "-")
+            })
+
             time.sleep(1.2)
 
-    df = pd.DataFrame(results_list)
-    st.success("✅ Done! Here's your data:")
+    if summary_results:
+        df = pd.DataFrame(summary_results)
+        st.success("✅ Visibility scoring summary:")
+        st.dataframe(df, use_container_width=True)
 
-    st.dataframe(df)
-
-    # Download CSV
-    csv = df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download CSV",
-        data=csv,
-        file_name=f"visibility_{brand}_{datetime.today().strftime('%Y-%m-%d')}.csv",
-        mime='text/csv'
-    )
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="📥 Download CSV",
+            data=csv,
+            file_name=f"visibility_score_{brand}_{datetime.today().strftime('%Y-%m-%d')}.csv",
+            mime='text/csv',
+            key="download-csv"
+        )
+    else:
+        st.warning("⚠️ No brand mentions found in SERP features.")
